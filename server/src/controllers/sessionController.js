@@ -33,7 +33,6 @@ export async function createSession(req, res, next) {
     const questionCountNumber = Number(questionCount);
 
     const dbQuestions = await Question.find({ category: categoryQuery, difficulty: difficultyQuery })
-      .limit(questionCountNumber * 2)
       .lean();
 
     const seenPrompts = new Set();
