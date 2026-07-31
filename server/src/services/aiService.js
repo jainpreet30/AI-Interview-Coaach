@@ -146,41 +146,36 @@ function stubGenerateInterviewQuestions({ category, difficulty, questionCount })
   const templates = getQuestionTemplates(category, difficulty);
   const results = [];
   const seenPrompts = new Set();
+  let templateIndex = 0;
+  let variationIndex = 1;
 
-  for (const template of templates) {
-    if (results.length >= questionCount) break;
-    const prompt = template.prompt.trim();
-    if (!seenPrompts.has(prompt)) {
-      seenPrompts.add(prompt);
-      results.push({
-        prompt,
-        sampleAnswer: template.sampleAnswer,
-        tags: template.tags || [category.toLowerCase(), difficulty]
-      });
-    }
-  }
-
-  let iteration = 0;
   while (results.length < questionCount) {
-    const base = templates[iteration % templates.length] || {
+    const template = templates[templateIndex % templates.length] || {
       prompt: `Describe an important concept from ${category} at ${difficulty} difficulty.`,
       sampleAnswer: `A strong answer should explain the concept clearly, include an example, and mention why it matters in real systems.`,
       tags: [category.toLowerCase(), difficulty]
     };
-    const prompt = `${base.prompt} Provide a different angle or use-case for the concept.`;
-    const promptKey = prompt.trim();
-    if (!seenPrompts.has(promptKey)) {
-      seenPrompts.add(promptKey);
-      results.push({
-        prompt,
-        sampleAnswer: base.sampleAnswer,
-        tags: base.tags || [category.toLowerCase(), difficulty]
-      });
+
+    let prompt = template.prompt.trim();
+    if (seenPrompts.has(prompt)) {
+      prompt = `${template.prompt} Explain it in a different way or provide another example.`;
     }
-    iteration += 1;
-    if (iteration > questionCount + templates.length) {
-      break;
+    if (seenPrompts.has(prompt)) {
+      prompt = `${template.prompt} Describe another aspect of the concept and how it applies in practice.`;
     }
+    while (seenPrompts.has(prompt)) {
+      prompt = `${template.prompt} Offer a new use case or compare it with a related idea (${variationIndex}).`;
+      variationIndex += 1;
+    }
+
+    seenPrompts.add(prompt);
+    results.push({
+      prompt,
+      sampleAnswer: template.sampleAnswer,
+      tags: template.tags || [category.toLowerCase(), difficulty]
+    });
+
+    templateIndex += 1;
   }
 
   return results.slice(0, questionCount);
