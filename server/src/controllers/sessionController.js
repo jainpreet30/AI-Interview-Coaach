@@ -13,15 +13,23 @@ export async function createSession(req, res, next) {
 
     const categoryQuery = new RegExp(`^${category}$`, 'i');
     const difficultyQuery = new RegExp(`^${difficulty}$`, 'i');
+    const questionCountNumber = Number(questionCount);
 
-    let questions = await Question.find({ category: categoryQuery, difficulty: difficultyQuery }).limit(Number(questionCount));
-    if (questions.length === 0) {
-      const generated = await generateInterviewQuestions({ category, difficulty, questionCount: Number(questionCount) });
-      questions = generated.map((question) => ({
-        prompt: question.prompt,
-        sampleAnswer: question.sampleAnswer,
-        tags: question.tags
-      }));
+    let questions = await Question.find({ category: categoryQuery, difficulty: difficultyQuery })
+      .limit(questionCountNumber)
+      .lean();
+
+    if (questions.length < questionCountNumber) {
+      const missingCount = questionCountNumber - questions.length;
+      const generated = await generateInterviewQuestions({ category, difficulty, questionCount: missingCount });
+      questions = [
+        ...questions,
+        ...generated.map((question) => ({
+          prompt: question.prompt,
+          sampleAnswer: question.sampleAnswer,
+          tags: question.tags
+        }))
+      ];
     }
 
     const sessionQuestions = questions.map((question) => ({

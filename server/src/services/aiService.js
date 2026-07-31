@@ -146,12 +146,9 @@ function stubGenerateInterviewQuestions({ category, difficulty, questionCount })
   const templates = getQuestionTemplates(category, difficulty);
   return Array.from({ length: questionCount }, (_, index) => {
     const template = templates[index % templates.length];
-    const prompt = template.prompt.includes('Question')
-      ? template.prompt
-      : `${template.prompt}${questionCount > 1 ? ` Question ${index + 1}.` : ''}`;
 
     return {
-      prompt,
+      prompt: template.prompt,
       sampleAnswer: template.sampleAnswer,
       tags: template.tags || [category.toLowerCase(), difficulty]
     };
