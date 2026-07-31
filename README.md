@@ -16,6 +16,7 @@ AI Interview Coach is a final-year MERN project designed to provide students and
 3. Run the server and client locally:
    - Backend: `cd server && npm install && npm run dev`
    - Frontend: `cd client && npm install && npm run dev`
+   - Run backend tests with `cd server && npm test` and frontend tests with `cd client && npm test`
 4. Seed the database with sample data:
    - `cd server && npm run seed`
 5. Validate the interview workflow by creating a new practice session and answering questions.

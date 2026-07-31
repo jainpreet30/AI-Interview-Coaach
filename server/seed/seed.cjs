@@ -81,14 +81,9 @@ const Feedback = mongoose.model('SeedFeedback', feedbackSchema, 'feedback_report
 const Analytics = mongoose.model('SeedAnalytics', analyticsSchema, 'analytics');
 
 async function hashPassword(plain) {
-  try {
-    const bcrypt = require('bcrypt');
-    const saltRounds = 10;
-    return await bcrypt.hash(plain, saltRounds);
-  } catch (err) {
-    console.warn('bcrypt not available (or failed). Storing plain passwordHash field with the plain text password. Install bcrypt for hashed passwords.');
-    return plain;
-  }
+  const bcrypt = require('bcryptjs');
+  const saltRounds = 10;
+  return await bcrypt.hash(plain, saltRounds);
 }
 
 async function runSeed() {

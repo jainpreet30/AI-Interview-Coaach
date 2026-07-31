@@ -1,0 +1,16 @@
+{
+  "version": 2,
+  "name": "ai-interview-coach-frontend",
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/static-build",
+      "config": { "distDir": "dist" }
+    }
+  ],
+  "routes": [],
+  "#notes": "Set VITE_API_URL in Vercel Project Environment Variables to https://<your-backend>.onrender.com/api/v1 (or your backend URL).",
+  "#env_example": {
+    "VITE_API_URL": "https://your-backend-url/api/v1"
+  }
+}

@@ -1,0 +1,28 @@
+# Render service spec (infrastructure-as-code)
+# Replace placeholder values (especially env var values) in the Render UI or via Render's secret store.
+# To deploy: connect your GitHub repo to Render and enable "Auto-Deploy" for the service.
+
+services:
+  - type: web
+    name: ai-interview-coach-backend
+    env: node
+    plan: free
+    branch: main
+    buildCommand: cd server && npm ci
+    startCommand: cd server && npm start
+    # Optionally set a health check path
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: MONGODB_URI
+        value: "REPLACE_WITH_MONGODB_URI"
+      - key: AI_API_KEY
+        value: "REPLACE_WITH_AI_API_KEY"
+      - key: NODE_ENV
+        value: "production"
+      - key: PORT
+        value: "10000" # Render will ignore this for web services; keep if your app reads PORT
+
+# Notes:
+# - Do NOT commit real secrets to this file. Use Render dashboard's Environment section or Render's Secret manager.
+# - If you prefer Docker, replace `buildCommand` and `startCommand` with Docker settings and add a Dockerfile at server/.
+# - Render will run the buildCommand and then the startCommand on deploy. Ensure the startCommand runs a production server (e.g., `node src/index.js`).

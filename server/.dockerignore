@@ -1,0 +1,12 @@
+# Docker ignore for server
+node_modules
+npm-debug.log
+Dockerfile
+docker-compose.yml
+.git
+.gitignore
+.env
+.env.local
+.vscode
+logs
+coverage
