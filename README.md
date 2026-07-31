@@ -29,7 +29,10 @@ AI Interview Coach is a final-year MERN project designed to provide students and
 - Seed data: `server/seed/seed.cjs` and `server/seed/README.md` are available for rapid local setup.
 
 ## Recommended next steps
-- Verify your MongoDB Atlas network access and `MONGODB_URI` connection.
+- Verify your MongoDB Atlas network access and `MONGODB_URI` connection:
+  - In Atlas, open Network Access and add your current IP address or `0.0.0.0/0` for temporary testing.
+  - Confirm your Atlas cluster user exists and has permissions for the `interview-coach` database.
+  - Use the Atlas connection string wizard to get a working `mongodb+srv://` or `mongodb://` URI and save it in `server/.env`.
 - Use `npm run seed` in `server/` to populate the database with sample questions and a demo admin account.
 - Add automated tests:
   - Backend: Jest + Supertest for routes and controllers.
