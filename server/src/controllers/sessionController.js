@@ -11,25 +11,70 @@ export async function createSession(req, res, next) {
       return res.status(400).json({ message: 'Category and difficulty are required.' });
     }
 
-    const categoryQuery = new RegExp(`^${category}$`, 'i');
-    const difficultyQuery = new RegExp(`^${difficulty}$`, 'i');
+    const difficultyAliasMap = {
+      easy: 'easy',
+      medium: 'medium',
+      hard: 'hard',
+      high: 'hard'
+    };
+    const categoryAliasMap = {
+      'data structure': 'Data Structures',
+      'data structures': 'Data Structures',
+      algorithm: 'Algorithms',
+      algorithms: 'Algorithms',
+      'system design': 'System Design',
+      behavioral: 'Behavioral'
+    };
+
+    const normalizedDifficulty = difficultyAliasMap[difficulty.toLowerCase()] || difficulty.toLowerCase();
+    const normalizedCategory = categoryAliasMap[category.toLowerCase()] || category;
+    const categoryQuery = new RegExp(`^${normalizedCategory}$`, 'i');
+    const difficultyQuery = new RegExp(`^${normalizedDifficulty}$`, 'i');
     const questionCountNumber = Number(questionCount);
 
-    let questions = await Question.find({ category: categoryQuery, difficulty: difficultyQuery })
-      .limit(questionCountNumber)
+    const dbQuestions = await Question.find({ category: categoryQuery, difficulty: difficultyQuery })
+      .limit(questionCountNumber * 2)
       .lean();
+
+    const seenPrompts = new Set();
+    const uniqueDbQuestions = [];
+    for (const question of dbQuestions) {
+      const promptKey = question.prompt.trim();
+      if (!seenPrompts.has(promptKey)) {
+        seenPrompts.add(promptKey);
+        uniqueDbQuestions.push(question);
+      }
+      if (uniqueDbQuestions.length >= questionCountNumber) {
+        break;
+      }
+    }
+
+    let questions = uniqueDbQuestions;
 
     if (questions.length < questionCountNumber) {
       const missingCount = questionCountNumber - questions.length;
-      const generated = await generateInterviewQuestions({ category, difficulty, questionCount: missingCount });
-      questions = [
-        ...questions,
-        ...generated.map((question) => ({
-          prompt: question.prompt,
-          sampleAnswer: question.sampleAnswer,
-          tags: question.tags
-        }))
-      ];
+      const generated = await generateInterviewQuestions({ category: normalizedCategory, difficulty: normalizedDifficulty, questionCount: missingCount });
+      for (const generatedQuestion of generated) {
+        const promptKey = generatedQuestion.prompt.trim();
+        if (!seenPrompts.has(promptKey)) {
+          seenPrompts.add(promptKey);
+          questions.push({
+            prompt: generatedQuestion.prompt,
+            sampleAnswer: generatedQuestion.sampleAnswer,
+            tags: generatedQuestion.tags
+          });
+        }
+      }
+
+      // If generated fallback still had duplicates, fill any remaining questions with safe generic prompts.
+      while (questions.length < questionCountNumber) {
+        const prompt = `Provide another ${normalizedDifficulty} ${normalizedCategory} interview question and explain why it matters.`;
+        questions.push({
+          prompt,
+          sampleAnswer: `A good answer explains the concept clearly, offers an example, and shows how it is used in real systems.`,
+          tags: [normalizedCategory.toLowerCase(), normalizedDifficulty]
+        });
+      }
     }
 
     const sessionQuestions = questions.map((question) => ({

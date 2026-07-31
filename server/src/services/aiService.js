@@ -144,15 +144,46 @@ function getQuestionTemplates(category, difficulty) {
 
 function stubGenerateInterviewQuestions({ category, difficulty, questionCount }) {
   const templates = getQuestionTemplates(category, difficulty);
-  return Array.from({ length: questionCount }, (_, index) => {
-    const template = templates[index % templates.length];
+  const results = [];
+  const seenPrompts = new Set();
 
-    return {
-      prompt: template.prompt,
-      sampleAnswer: template.sampleAnswer,
-      tags: template.tags || [category.toLowerCase(), difficulty]
+  for (const template of templates) {
+    if (results.length >= questionCount) break;
+    const prompt = template.prompt.trim();
+    if (!seenPrompts.has(prompt)) {
+      seenPrompts.add(prompt);
+      results.push({
+        prompt,
+        sampleAnswer: template.sampleAnswer,
+        tags: template.tags || [category.toLowerCase(), difficulty]
+      });
+    }
+  }
+
+  let iteration = 0;
+  while (results.length < questionCount) {
+    const base = templates[iteration % templates.length] || {
+      prompt: `Describe an important concept from ${category} at ${difficulty} difficulty.`,
+      sampleAnswer: `A strong answer should explain the concept clearly, include an example, and mention why it matters in real systems.`,
+      tags: [category.toLowerCase(), difficulty]
     };
-  });
+    const prompt = `${base.prompt} Provide a different angle or use-case for the concept.`;
+    const promptKey = prompt.trim();
+    if (!seenPrompts.has(promptKey)) {
+      seenPrompts.add(promptKey);
+      results.push({
+        prompt,
+        sampleAnswer: base.sampleAnswer,
+        tags: base.tags || [category.toLowerCase(), difficulty]
+      });
+    }
+    iteration += 1;
+    if (iteration > questionCount + templates.length) {
+      break;
+    }
+  }
+
+  return results.slice(0, questionCount);
 }
 
 export async function evaluateAnswer({ questionText, userAnswer }) {
