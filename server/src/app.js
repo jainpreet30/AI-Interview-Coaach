@@ -7,6 +7,7 @@ import questionRouter from './routes/questions.js';
 import sessionRouter from './routes/sessions.js';
 import feedbackRouter from './routes/feedback.js';
 import analyticsRouter from './routes/analytics.js';
+import liveSessionRouter from './routes/liveSession.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 
 const app = express();
@@ -20,6 +21,7 @@ app.use('/api/v1/questions', questionRouter);
 app.use('/api/v1/sessions', sessionRouter);
 app.use('/api/v1/feedback', feedbackRouter);
 app.use('/api/v1/analytics', analyticsRouter);
+app.use('/api/v1/live-sessions', liveSessionRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

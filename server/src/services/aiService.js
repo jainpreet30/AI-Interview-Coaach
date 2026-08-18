@@ -106,41 +106,41 @@ function getQuestionTemplates(category, difficulty) {
         {
           prompt: 'Compare an array and a linked list. When should you use each one?',
           sampleAnswer: 'Arrays are great for fast indexed access, while linked lists excel at insertions and deletions. Use arrays when you need random access and fixed-size collections; use linked lists for frequent insertions and memory-efficient growth.',
-          tags: ['arrays','linked-list']
+          tags: ['arrays', 'linked-list']
         },
         {
           prompt: 'Explain how a stack works and give a real-world programming example.',
           sampleAnswer: 'A stack follows LIFO order. It is useful for function call stacks, undo functionality, and depth-first search.',
-          tags: ['stack','lifo']
+          tags: ['stack', 'lifo']
         },
         {
           prompt: 'What is a hash table and why is it useful for lookup operations?',
           sampleAnswer: 'A hash table maps keys to values with near-constant-time lookup. It uses a hash function to place items in buckets, making it great for caches and dictionaries.',
-          tags: ['hash-table','lookup']
+          tags: ['hash-table', 'lookup']
         }
       ],
       medium: [
         {
           prompt: 'Describe how a binary search tree stores data and how search operates in it.',
           sampleAnswer: 'A BST stores data such that left nodes are smaller and right nodes are larger. Search compares values and traverses left or right accordingly, giving average O(log n) time.',
-          tags: ['binary-search-tree','bst']
+          tags: ['binary-search-tree', 'bst']
         },
         {
           prompt: 'Explain the difference between a queue and a deque, and where each is used.',
           sampleAnswer: 'A queue is FIFO, while a deque supports insertion/removal at both ends. Use queues for task scheduling and deques for sliding window problems.',
-          tags: ['queue','deque']
+          tags: ['queue', 'deque']
         }
       ],
       hard: [
         {
           prompt: 'How does a balanced tree like AVL or red-black tree maintain O(log n) operations?',
           sampleAnswer: 'Balanced trees enforce height constraints and rebalance after insertions/deletions to keep depth logarithmic, ensuring efficient searches.',
-          tags: ['avl','red-black-tree']
+          tags: ['avl', 'red-black-tree']
         },
         {
           prompt: 'Explain how a heap is used to implement a priority queue.',
           sampleAnswer: 'Heaps keep the highest-priority element at the root, allowing insert and remove operations in O(log n). This is ideal for scheduling and Dijkstra’s algorithm.',
-          tags: ['heap','priority-queue']
+          tags: ['heap', 'priority-queue']
         }
       ]
     },
@@ -149,36 +149,36 @@ function getQuestionTemplates(category, difficulty) {
         {
           prompt: 'What is binary search and when would you use it?',
           sampleAnswer: 'Binary search finds an item in a sorted array by repeatedly halving the search range. Use it when the data is sorted and you need fast lookups.',
-          tags: ['binary-search','search']
+          tags: ['binary-search', 'search']
         },
         {
           prompt: 'Describe the difference between linear search and binary search.',
           sampleAnswer: 'Linear search checks each element and is O(n), while binary search halves the search space and runs in O(log n) on sorted data.',
-          tags: ['search','comparison']
+          tags: ['search', 'comparison']
         }
       ],
       medium: [
         {
           prompt: 'Explain Dijkstra’s algorithm for shortest path problems.',
           sampleAnswer: 'Dijkstra uses a priority queue to find the shortest path from a source to all nodes in a weighted graph with non-negative edges.',
-          tags: ['dijkstra','graphs']
+          tags: ['dijkstra', 'graphs']
         },
         {
           prompt: 'How does dynamic programming improve performance over naive recursion?',
           sampleAnswer: 'Dynamic programming caches results of overlapping subproblems to avoid redundant computation, turning exponential recursion into polynomial time.',
-          tags: ['dynamic-programming','optimization']
+          tags: ['dynamic-programming', 'optimization']
         }
       ],
       hard: [
         {
           prompt: 'What is the traveling salesman problem and why is it hard?',
           sampleAnswer: 'TSP asks for the shortest round trip through all cities. It is NP-hard, meaning no known polynomial-time solution exists for large instances.',
-          tags: ['tsp','np-hard']
+          tags: ['tsp', 'np-hard']
         },
         {
           prompt: 'Explain the concept of memoization and how it differs from tabulation.',
           sampleAnswer: 'Memoization caches results top-down during recursion; tabulation builds a table bottom-up. Both are DP techniques, but the approach differs.',
-          tags: ['memoization','tabulation']
+          tags: ['memoization', 'tabulation']
         }
       ]
     }
@@ -398,4 +398,11 @@ export async function summarizeSession({ questions }) {
     summary: `You completed ${coveredCount} question${coveredCount === 1 ? '' : 's'} with an average score of ${average.toFixed(1)}.`,
     confidenceScore: Math.round(average * 10) / 10
   };
+}
+const coveredCount = questions.filter((item) => item.score != null).length;
+const average = questions.length > 0 ? questions.reduce((sum, item) => sum + (item.score || 0), 0) / questions.length : 0;
+return {
+  summary: `You completed ${coveredCount} question${coveredCount === 1 ? '' : 's'} with an average score of ${average.toFixed(1)}.`,
+  confidenceScore: Math.round(average * 10) / 10
+};
 }

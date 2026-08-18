@@ -9,7 +9,9 @@
   box-sizing: border-box;
 }
 
-body, html, #root {
+body,
+html,
+#root {
   margin: 0;
   min-height: 100%;
 }
@@ -231,6 +233,15 @@ button {
   color: white;
 }
 
+.button-success {
+  background: #16a34a;
+  color: white;
+}
+
+.button-success:hover {
+  background: #15803d;
+}
+
 .button-secondary,
 .link-secondary {
   background: #e2e8f0;
@@ -251,6 +262,24 @@ button {
   justify-content: space-between;
   gap: 1rem;
   margin-bottom: 1.5rem;
+}
+
+.header-buttons {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+@media (max-width: 768px) {
+  .header-buttons {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .header-buttons .button {
+    width: 100%;
+  }
 }
 
 .dashboard-grid {
@@ -455,6 +484,7 @@ textarea:focus {
 }
 
 @media (max-width: 900px) {
+
   .hero-section,
   .question-layout {
     grid-template-columns: 1fr;
@@ -732,8 +762,15 @@ textarea:focus {
 }
 
 @keyframes pulseGlow {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.6;
+  }
 }
 
 /* GitHub-style Activity Contribution Calendar Heatmap */
@@ -1118,9 +1155,17 @@ textarea:focus {
   border-radius: 50%;
 }
 
-.card-dot.red { background: #ef4444; }
-.card-dot.yellow { background: #f59e0b; }
-.card-dot.green { background: #10b981; }
+.card-dot.red {
+  background: #ef4444;
+}
+
+.card-dot.yellow {
+  background: #f59e0b;
+}
+
+.card-dot.green {
+  background: #10b981;
+}
 
 .card-title {
   margin-left: 0.4rem;
@@ -1893,16 +1938,29 @@ textarea:focus {
   margin-bottom: 0.35rem;
 }
 
-.cat-pill, .role-pill, .diff-pill {
+.cat-pill,
+.role-pill,
+.diff-pill {
   font-size: 0.75rem;
   font-weight: 700;
   padding: 0.2rem 0.6rem;
   border-radius: 9999px;
 }
 
-.cat-pill { background: #eff6ff; color: #1d4ed8; }
-.role-pill { background: #f1f5f9; color: #334155; }
-.diff-pill { background: #fef3c7; color: #92400e; }
+.cat-pill {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.role-pill {
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.diff-pill {
+  background: #fef3c7;
+  color: #92400e;
+}
 
 .session-card-info h4 {
   margin: 0 0 0.25rem;
@@ -1954,7 +2012,3 @@ textarea:focus {
     grid-template-columns: 1fr;
   }
 }
-
-
-
-

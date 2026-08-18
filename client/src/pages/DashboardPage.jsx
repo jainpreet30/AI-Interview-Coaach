@@ -79,9 +79,14 @@ export default function DashboardPage() {
           <h1>Welcome back, {user?.name || 'Candidate'}</h1>
           <p>Track your interview readiness score, skill masteries, and active practice streak.</p>
         </div>
-        <Link className="button button-primary button-lg" to="/practice/start">
-          Start Mock Session →
-        </Link>
+        <div className="header-buttons">
+          <Link className="button button-primary button-lg" to="/practice/start">
+            Start Mock Session →
+          </Link>
+          <Link className="button button-success button-lg" to="/live-interview/start">
+            🎤 Live Interview →
+          </Link>
+        </div>
       </div>
 
       {/* Overview Stat Cards */}

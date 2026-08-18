@@ -1,7 +1,10 @@
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import dns from 'dns/promises';
+import http from 'http';
+import { Server } from 'socket.io';
 import app from './app.js';
+import { setupLiveInterviewSocket } from './websocket/liveInterviewSocket.js';
 
 dotenv.config();
 
@@ -60,7 +63,21 @@ async function connectDatabaseWithRetry(uri, maxAttempts = 5, delayMs = 2000) {
 }
 
 connectDatabaseWithRetry(MONGODB_URI).then(() => {
-  app.listen(PORT, () => {
+  const server = http.createServer(app);
+
+  // Set up Socket.io
+  const io = new Server(server, {
+    cors: {
+      origin: process.env.CLIENT_URL || 'http://localhost:5173',
+      methods: ['GET', 'POST']
+    }
+  });
+
+  // Set up live interview socket handlers
+  setupLiveInterviewSocket(io);
+
+  server.listen(PORT, () => {
     console.log(`Server listening on http://localhost:${PORT}`);
+    console.log(`WebSocket ready on ws://localhost:${PORT}`);
   });
 });

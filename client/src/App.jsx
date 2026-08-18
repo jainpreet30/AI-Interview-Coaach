@@ -9,6 +9,8 @@ import RegisterPage from './pages/RegisterPage.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
 import PracticeStartPage from './pages/PracticeStartPage.jsx';
 import PracticeSessionPage from './pages/PracticeSessionPage.jsx';
+import LiveInterviewStartPage from './pages/LiveInterviewStartPage.jsx';
+import LiveInterviewPage from './pages/LiveInterviewPage.jsx';
 import NotFoundPage from './pages/NotFoundPage.jsx';
 
 function App() {
@@ -43,6 +45,22 @@ function App() {
               element={
                 <ProtectedRoute>
                   <PracticeSessionPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/live-interview/start"
+              element={
+                <ProtectedRoute>
+                  <LiveInterviewStartPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/live-interview/:sessionId"
+              element={
+                <ProtectedRoute>
+                  <LiveInterviewPage />
                 </ProtectedRoute>
               }
             />

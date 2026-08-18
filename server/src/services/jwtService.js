@@ -6,6 +6,7 @@ export function createToken(user) {
   return jwt.sign(
     {
       sub: user._id,
+      id: user._id, // Include both for compatibility
       name: user.name,
       email: user.email,
       role: user.role
@@ -16,5 +17,9 @@ export function createToken(user) {
 }
 
 export function verifyToken(token) {
-  return jwt.verify(token, secret);
+  try {
+    return jwt.verify(token, secret);
+  } catch (error) {
+    return null;
+  }
 }
