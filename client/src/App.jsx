@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import NavBar from './components/NavBar.jsx';
 import Footer from './components/Footer.jsx';
+import AnnouncementBar from './components/AnnouncementBar.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import HomePage from './pages/HomePage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
@@ -14,6 +15,7 @@ function App() {
   return (
     <BrowserRouter>
       <div className="app-root">
+        <AnnouncementBar />
         <NavBar />
         <main className="app-shell">
           <Routes>

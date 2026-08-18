@@ -323,31 +323,64 @@ Return ONLY a JSON object with:
   }
 }
 
-export async function generateInterviewQuestions({ category, difficulty, questionCount = 5 }) {
+export async function generateInterviewQuestions({
+  category,
+  difficulty,
+  questionCount = 5,
+  targetRole = 'Software Engineer',
+  interviewerPersona = 'faang-lead',
+  resumeText = '',
+  jobDescription = ''
+}) {
   if (!openai) {
-    return stubGenerateInterviewQuestions({ category, difficulty, questionCount });
+    const baseQuestions = stubGenerateInterviewQuestions({ category, difficulty, questionCount });
+    if (resumeText || jobDescription) {
+      baseQuestions.unshift({
+        prompt: `Based on your target role (${targetRole}), describe a complex project you worked on recently and the technical trade-offs you made.`,
+        sampleAnswer: `Explain your role, architectural decisions, challenges faced, and measurable outcomes.`,
+        tags: [category.toLowerCase(), 'personalized', 'resume']
+      });
+      return baseQuestions.slice(0, questionCount);
+    }
+    return baseQuestions;
   }
 
-  const prompt = `You are an interview coach. Create ${questionCount} interview questions for category '${category}' at '${difficulty}' difficulty. Return only a JSON array of objects with fields: prompt, sampleAnswer, and tags. Keep the output strictly valid JSON.`;
+  const personaMap = {
+    'faang-lead': 'A strict FAANG Tech Lead who focuses on deep technical complexity, system trade-offs, and edge cases.',
+    'recruiter': 'A friendly, supportive talent acquisition recruiter focusing on culture fit, ownership, and STAR story structure.',
+    'startup-founder': 'A fast-paced startup founder focusing on rapid execution, ownership, and practical problem solving.',
+    'architect': 'A senior system architect focusing on scalability, distributed systems, caching, and data integrity.'
+  };
+
+  const personaPrompt = personaMap[interviewerPersona] || personaMap['faang-lead'];
+
+  const prompt = `You are playing the role of: ${personaPrompt}
+Generate ${questionCount} tailored interview questions for candidate applying for '${targetRole}' in category '${category}' at '${difficulty}' difficulty.
+
+${resumeText ? `CANDIDATE RESUME SUMMARY:\n${resumeText.slice(0, 1000)}\n` : ''}
+${jobDescription ? `TARGET JOB DESCRIPTION:\n${jobDescription.slice(0, 1000)}\n` : ''}
+
+If resume or job description details are provided, tailor at least 2 questions directly to the candidate's actual projects or required job skills.
+Return ONLY a valid JSON array of objects with fields: prompt, sampleAnswer, and tags (array of strings).`;
 
   try {
     const response = await openai.chat.completions.create({
       model: aiModel,
       messages: [
-        { role: 'system', content: 'You are an expert interview coach and content generator.' },
+        { role: 'system', content: 'You are an expert personalized interview question generator.' },
         { role: 'user', content: prompt }
       ],
-      temperature: 0.8,
-      max_tokens: 600
+      temperature: 0.7,
+      max_tokens: 750
     });
 
     const content = response.choices?.[0]?.message?.content?.[0]?.text ?? response.choices?.[0]?.message?.content ?? '';
     const parsed = parseJsonFromText(typeof content === 'string' ? content : JSON.stringify(content));
-    if (Array.isArray(parsed)) {
+    if (Array.isArray(parsed) && parsed.length > 0) {
       return parsed.map((item) => ({
         prompt: item.prompt || '',
         sampleAnswer: item.sampleAnswer || '',
-        tags: Array.isArray(item.tags) ? item.tags : []
+        tags: Array.isArray(item.tags) ? item.tags : [category.toLowerCase(), difficulty]
       }));
     }
 

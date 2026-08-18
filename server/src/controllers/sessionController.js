@@ -6,7 +6,17 @@ import { evaluateAnswer, generateInterviewQuestions, summarizeSession } from '..
 
 export async function createSession(req, res, next) {
   try {
-    const { category, difficulty, questionCount = 5, tags = [] } = req.body;
+    const {
+      category,
+      difficulty,
+      questionCount = 5,
+      targetRole = 'Software Engineer',
+      interviewerPersona = 'faang-lead',
+      resumeText = '',
+      jobDescription = '',
+      tags = []
+    } = req.body;
+
     if (!category || !difficulty) {
       return res.status(400).json({ message: 'Category and difficulty are required.' });
     }
@@ -28,52 +38,69 @@ export async function createSession(req, res, next) {
 
     const normalizedDifficulty = difficultyAliasMap[difficulty.toLowerCase()] || difficulty.toLowerCase();
     const normalizedCategory = categoryAliasMap[category.toLowerCase()] || category;
-    const categoryQuery = new RegExp(`^${normalizedCategory}$`, 'i');
-    const difficultyQuery = new RegExp(`^${normalizedDifficulty}$`, 'i');
     const questionCountNumber = Number(questionCount);
 
-    const dbQuestions = await Question.find({ category: categoryQuery, difficulty: difficultyQuery })
-      .lean();
-
+    let questions = [];
     const seenPrompts = new Set();
-    const uniqueDbQuestions = [];
-    for (const question of dbQuestions) {
-      const promptKey = question.prompt.trim();
-      if (!seenPrompts.has(promptKey)) {
-        seenPrompts.add(promptKey);
-        uniqueDbQuestions.push(question);
-      }
-      if (uniqueDbQuestions.length >= questionCountNumber) {
-        break;
-      }
-    }
 
-    let questions = uniqueDbQuestions;
+    // If resume or job description is provided, prioritize generating personalized AI questions
+    if (resumeText || jobDescription) {
+      const generated = await generateInterviewQuestions({
+        category: normalizedCategory,
+        difficulty: normalizedDifficulty,
+        questionCount: questionCountNumber,
+        targetRole,
+        interviewerPersona,
+        resumeText,
+        jobDescription
+      });
+      questions = generated;
+    } else {
+      const categoryQuery = new RegExp(`^${normalizedCategory}$`, 'i');
+      const difficultyQuery = new RegExp(`^${normalizedDifficulty}$`, 'i');
 
-    if (questions.length < questionCountNumber) {
-      const missingCount = questionCountNumber - questions.length;
-      const generated = await generateInterviewQuestions({ category: normalizedCategory, difficulty: normalizedDifficulty, questionCount: missingCount });
-      for (const generatedQuestion of generated) {
-        const promptKey = generatedQuestion.prompt.trim();
+      const dbQuestions = await Question.find({ category: categoryQuery, difficulty: difficultyQuery }).lean();
+      for (const question of dbQuestions) {
+        const promptKey = question.prompt.trim();
         if (!seenPrompts.has(promptKey)) {
           seenPrompts.add(promptKey);
-          questions.push({
-            prompt: generatedQuestion.prompt,
-            sampleAnswer: generatedQuestion.sampleAnswer,
-            tags: generatedQuestion.tags
-          });
+          questions.push(question);
+        }
+        if (questions.length >= questionCountNumber) {
+          break;
         }
       }
 
-      // If generated fallback still had duplicates, fill any remaining questions with safe generic prompts.
-      while (questions.length < questionCountNumber) {
-        const prompt = `Provide another ${normalizedDifficulty} ${normalizedCategory} interview question and explain why it matters.`;
-        questions.push({
-          prompt,
-          sampleAnswer: `A good answer explains the concept clearly, offers an example, and shows how it is used in real systems.`,
-          tags: [normalizedCategory.toLowerCase(), normalizedDifficulty]
+      if (questions.length < questionCountNumber) {
+        const missingCount = questionCountNumber - questions.length;
+        const generated = await generateInterviewQuestions({
+          category: normalizedCategory,
+          difficulty: normalizedDifficulty,
+          questionCount: missingCount,
+          targetRole,
+          interviewerPersona
         });
+        for (const generatedQuestion of generated) {
+          const promptKey = generatedQuestion.prompt.trim();
+          if (!seenPrompts.has(promptKey)) {
+            seenPrompts.add(promptKey);
+            questions.push({
+              prompt: generatedQuestion.prompt,
+              sampleAnswer: generatedQuestion.sampleAnswer,
+              tags: generatedQuestion.tags
+            });
+          }
+        }
       }
+    }
+
+    while (questions.length < questionCountNumber) {
+      const prompt = `Describe a key ${normalizedDifficulty} ${normalizedCategory} concept for a ${targetRole} role.`;
+      questions.push({
+        prompt,
+        sampleAnswer: `Explain the fundamental concept, trade-offs, and a real-world example.`,
+        tags: [normalizedCategory.toLowerCase(), normalizedDifficulty]
+      });
     }
 
     const sessionQuestions = questions.map((question) => ({
@@ -89,6 +116,10 @@ export async function createSession(req, res, next) {
       userId: req.user._id,
       category,
       difficulty,
+      targetRole,
+      interviewerPersona,
+      resumeText,
+      jobDescription,
       questions: sessionQuestions,
       tags: Array.isArray(tags) ? tags : [],
       status: 'in-progress'
