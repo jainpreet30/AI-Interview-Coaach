@@ -17,6 +17,7 @@ AI Interview Coach is a final-year MERN project designed to provide students and
    - Backend: `cd server && npm install && npm run dev`
    - Frontend: `cd client && npm install && npm run dev`
    - Run backend tests with `cd server && npm test` and frontend tests with `cd client && npm test`
+   - For production deployment, set `VITE_API_URL=https://<your-backend>/api/v1` in the frontend environment so deployed Vercel builds call the backend URL.
 4. Seed the database with sample data:
    - `cd server && npm run seed`
 5. Validate the interview workflow by creating a new practice session and answering questions.
@@ -40,6 +41,7 @@ AI Interview Coach is a final-year MERN project designed to provide students and
   - Frontend: React Testing Library for pages and components.
 - Add GitHub Actions to run linting and tests on every push.
 - Deploy the backend to a service like Render, Heroku, or Railway and the frontend to Vercel or Netlify.
+- For Vercel frontend deployment, set `VITE_API_URL=https://<your-backend>/api/v1` in Vercel Environment Variables so the deployed client calls the backend correctly.
 - Keep secrets out of source control and manage them through environment variables in deployment.
 
 ## Running the project locally

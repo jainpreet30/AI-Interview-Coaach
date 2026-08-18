@@ -14,18 +14,84 @@ function parseJsonFromText(text) {
   }
 }
 
-function stubEvaluateAnswer({ questionText, userAnswer }) {
+function stubEvaluateAnswer({ questionText, userAnswer, speechMetrics = {} }) {
   const trimmed = (userAnswer || '').trim();
-  const score = Math.min(10, Math.max(1, Math.round(trimmed.length / 20 + 3)));
+  const wordCount = trimmed ? trimmed.split(/\s+/).length : 0;
+  const score = trimmed ? Math.min(10, Math.max(1, Math.round(wordCount / 12 + 3))) : 1;
+
+  const hasSituation = /situation|when|while|during|at my previous|project/i.test(trimmed);
+  const hasTask = /task|goal|objective|needed to|assigned|responsibility/i.test(trimmed);
+  const hasAction = /action|i implemented|i created|i built|i designed|i solved|i used|i analyzed/i.test(trimmed);
+  const hasResult = /result|outcome|improved|increased|decreased|reduced|achieved|percent|%/i.test(trimmed);
+
+  const starScore = {
+    situation: trimmed ? (hasSituation ? 8 : 4) : 0,
+    task: trimmed ? (hasTask ? 8 : 4) : 0,
+    action: trimmed ? (hasAction ? 9 : 5) : 0,
+    result: trimmed ? (hasResult ? 9 : 3) : 0
+  };
+
+  const technicalScore = trimmed ? Math.min(10, Math.max(3, Math.round(wordCount / 10 + 2))) : 1;
+  const communicationScore = trimmed ? Math.min(10, Math.max(4, Math.round(10 - (speechMetrics.fillerWordCount || 0) * 0.5))) : 1;
+
+  const keyMissingPoints = [];
+  if (!hasResult) keyMissingPoints.push('Include measurable outcomes or metrics achieved (e.g. 20% latency reduction).');
+  if (!hasSituation) keyMissingPoints.push('Set clear context about the situation or business problem.');
+  if (wordCount < 30) keyMissingPoints.push('Elaborate with more depth and technical specifics.');
+
+  const criticism = trimmed
+    ? wordCount < 25
+      ? 'The answer is overly concise and lacks the technical depth expected in senior-level interviews. It mentions general concepts without explaining underlying mechanisms or trade-offs.'
+      : 'The answer provides a high-level explanation, but skips important operational details, failure scenarios, and performance trade-offs.'
+    : 'No response submitted. In an interview, staying silent or giving an empty answer leaves no opportunity for evaluation.';
+
+  const whatToAdd = [
+    'Explain the specific architectural or algorithmic trade-offs (e.g. Time vs Space complexity, CPU vs Memory).',
+    'Mention how you handle edge cases, failure recovery, or error logging in production.',
+    'Quantify your results with concrete numbers (e.g., "reduced latency by 35%" or "handled 10k req/sec").'
+  ];
+
+  const termsList = ['Time Complexity', 'Space Complexity', 'Edge Cases', 'Trade-offs', 'Scalability', 'Metrics'];
+  const keyTermsChecklist = termsList.map((term) => ({
+    term,
+    included: new RegExp(term, 'i').test(trimmed)
+  }));
+
+  const recommendedAddition = trimmed
+    ? `Add this paragraph to your response: "To optimize this further in production, I evaluated the trade-off between time complexity O(N) and memory consumption. By implementing proper caching and handling edge cases, we reduced response times by 30% while maintaining system stability."`
+    : `Include a structured explanation covering problem background, your technical solution, trade-off decisions, and measurable outcomes.`;
+
+  const idealAnswer = trimmed
+    ? `In my previous project, we faced a challenge where ${questionText.toLowerCase().includes('compare') ? 'we needed to select the optimal data architecture' : 'we needed a reliable solution'}. I took ownership by analyzing requirements, implementing a structured solution using best practices, and validating edge cases. As a result, system efficiency improved significantly.`
+    : `A strong response should clearly define the problem (Situation & Task), outline your individual contribution (Action), and quantify the final impact (Result).`;
 
   return {
     score,
     strengths: trimmed
-      ? 'Good attempt. Your answer covers the key idea and shows understanding of the topic.'
+      ? 'Good attempt. Your answer covers core principles and demonstrates relevant domain awareness.'
       : 'No answer was provided, so the response cannot be evaluated properly.',
     improvements: trimmed
-      ? 'Try adding a concrete example, more structure, and a short conclusion to strengthen your answer.'
-      : 'Write a full answer to receive a useful evaluation.',
+      ? 'To maximize your impact, structure your answer using the STAR method and provide quantifiable results.'
+      : 'Write or record a full response to receive detailed coaching feedback.',
+    rubric: {
+      technicalScore,
+      communicationScore,
+      starScore,
+      strengths: trimmed ? 'Clear articulation of the primary concept and active problem solving.' : 'N/A',
+      improvements: trimmed ? 'Add specific metrics, architectural details, and explicit results.' : 'N/A',
+      criticism,
+      whatToAdd,
+      keyTermsChecklist,
+      recommendedAddition,
+      keyMissingPoints: keyMissingPoints.length ? keyMissingPoints : ['Add deeper technical edge-case analysis.'],
+      idealAnswer
+    },
+    speechMetrics: {
+      wpm: speechMetrics.wpm || 0,
+      fillerWordCount: speechMetrics.fillerWordCount || 0,
+      fillerWordsFound: speechMetrics.fillerWordsFound || [],
+      speakingDurationSeconds: speechMetrics.speakingDurationSeconds || 0
+    },
     raw: `Question: ${questionText}\nAnswer: ${trimmed}`
   };
 }
@@ -181,39 +247,79 @@ function stubGenerateInterviewQuestions({ category, difficulty, questionCount })
   return results.slice(0, questionCount);
 }
 
-export async function evaluateAnswer({ questionText, userAnswer }) {
+export async function evaluateAnswer({ questionText, userAnswer, speechMetrics = {} }) {
   if (!openai) {
-    return stubEvaluateAnswer({ questionText, userAnswer });
+    return stubEvaluateAnswer({ questionText, userAnswer, speechMetrics });
   }
 
-  const prompt = `You are an interview coach. Evaluate the candidate's answer to the following question and return only a JSON object with fields: score (integer 1-10), strengths (short text), improvements (short text), and summary (short text).\n\nQuestion: ${questionText}\nAnswer: ${userAnswer}`;
+  const prompt = `You are an expert interview coach. Evaluate the candidate's answer to: "${questionText}".
+Candidate Answer: "${userAnswer}"
+
+Return ONLY a JSON object with:
+- score (1-10)
+- technicalScore (1-10)
+- communicationScore (1-10)
+- starScore: { situation (1-10), task (1-10), action (1-10), result (1-10) }
+- strengths (concise string)
+- improvements (concise string)
+- criticism (detailed technical critique highlighting flaws/vagueness)
+- whatToAdd (array of strings specifying exact concepts/metrics to add)
+- keyTermsChecklist (array of objects with fields: term, included)
+- recommendedAddition (concrete 2-3 sentence phrase to add directly to answer)
+- keyMissingPoints (array of short strings)
+- idealAnswer (short exemplar response based on candidate's points)`;
 
   try {
     const response = await openai.chat.completions.create({
       model: aiModel,
       messages: [
-        { role: 'system', content: 'You are a friendly and concise interview coach.' },
+        { role: 'system', content: 'You are an elite interview coach providing structured feedback.' },
         { role: 'user', content: prompt }
       ],
-      temperature: 0.6,
-      max_tokens: 300
+      temperature: 0.5,
+      max_tokens: 650
     });
 
     const content = response.choices?.[0]?.message?.content?.[0]?.text ?? response.choices?.[0]?.message?.content ?? '';
     const parsed = parseJsonFromText(typeof content === 'string' ? content : JSON.stringify(content));
     if (parsed && typeof parsed.score === 'number') {
+      const mainScore = Math.min(10, Math.max(1, Math.round(parsed.score)));
       return {
-        score: Math.min(10, Math.max(1, Math.round(parsed.score))),
-        strengths: parsed.strengths || 'The answer shows potential and some understanding of the topic.',
-        improvements: parsed.improvements || 'Provide more context, structure the response, and include an example.',
+        score: mainScore,
+        strengths: parsed.strengths || 'Shows basic understanding and clear articulation.',
+        improvements: parsed.improvements || 'Structure using STAR method and add quantifiable impact.',
+        rubric: {
+          technicalScore: Math.min(10, Math.max(1, Math.round(parsed.technicalScore || mainScore))),
+          communicationScore: Math.min(10, Math.max(1, Math.round(parsed.communicationScore || mainScore))),
+          starScore: {
+            situation: Math.min(10, Math.max(1, Math.round(parsed.starScore?.situation || 5))),
+            task: Math.min(10, Math.max(1, Math.round(parsed.starScore?.task || 5))),
+            action: Math.min(10, Math.max(1, Math.round(parsed.starScore?.action || 5))),
+            result: Math.min(10, Math.max(1, Math.round(parsed.starScore?.result || 4)))
+          },
+          strengths: parsed.strengths || 'Solid demonstration of problem-solving approach.',
+          improvements: parsed.improvements || 'Focus on concrete metrics and explicit results.',
+          criticism: parsed.criticism || 'The response is generic and lacks specific technical trade-offs.',
+          whatToAdd: Array.isArray(parsed.whatToAdd) ? parsed.whatToAdd : ['Add specific architectural trade-offs.', 'Include failure recovery details.'],
+          keyTermsChecklist: Array.isArray(parsed.keyTermsChecklist) ? parsed.keyTermsChecklist : [],
+          recommendedAddition: parsed.recommendedAddition || 'To optimize this solution in production, we evaluated the O(N) complexity trade-off and added edge-case validation.',
+          keyMissingPoints: Array.isArray(parsed.keyMissingPoints) ? parsed.keyMissingPoints : ['Add clear measurable results.'],
+          idealAnswer: parsed.idealAnswer || 'In my previous experience, I addressed this problem by designing a robust solution, resulting in improved system reliability.'
+        },
+        speechMetrics: {
+          wpm: speechMetrics.wpm || 0,
+          fillerWordCount: speechMetrics.fillerWordCount || 0,
+          fillerWordsFound: speechMetrics.fillerWordsFound || [],
+          speakingDurationSeconds: speechMetrics.speakingDurationSeconds || 0
+        },
         raw: content
       };
     }
 
-    return stubEvaluateAnswer({ questionText, userAnswer });
+    return stubEvaluateAnswer({ questionText, userAnswer, speechMetrics });
   } catch (error) {
     console.error('AI evaluation failed:', error?.message || error);
-    return stubEvaluateAnswer({ questionText, userAnswer });
+    return stubEvaluateAnswer({ questionText, userAnswer, speechMetrics });
   }
 }
 

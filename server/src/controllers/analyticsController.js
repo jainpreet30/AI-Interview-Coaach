@@ -2,25 +2,113 @@ import mongoose from 'mongoose';
 import InterviewSession from '../models/InterviewSession.js';
 import Analytics from '../models/Analytics.js';
 
+async function calculateUserActivityStats(userId) {
+  const sessions = await InterviewSession.find({ userId })
+    .select('updatedAt startedAt questions status overallScore')
+    .lean();
+
+  const activityMap = {};
+  let totalQuestionsAnswered = 0;
+
+  for (const session of sessions) {
+    const sessionDate = new Date(session.updatedAt || session.startedAt).toISOString().split('T')[0];
+    const answeredCount = session.questions
+      ? session.questions.filter((q) => q.userAnswer && q.userAnswer.trim()).length
+      : 1;
+    totalQuestionsAnswered += answeredCount;
+    activityMap[sessionDate] = (activityMap[sessionDate] || 0) + (answeredCount || 1);
+  }
+
+  const today = new Date();
+  const dailyActivity = [];
+  const activeDates = new Set(Object.keys(activityMap));
+
+  for (let i = 111; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toISOString().split('T')[0];
+    const count = activityMap[dateStr] || 0;
+
+    let level = 0;
+    if (count >= 7) level = 4;
+    else if (count >= 5) level = 3;
+    else if (count >= 3) level = 2;
+    else if (count >= 1) level = 1;
+
+    dailyActivity.push({
+      date: dateStr,
+      count,
+      level,
+      dayOfWeek: d.getDay()
+    });
+  }
+
+  let currentStreak = 0;
+  let longestStreak = 0;
+  let tempStreak = 0;
+
+  const checkDate = new Date(today);
+  const todayStr = checkDate.toISOString().split('T')[0];
+  if (!activeDates.has(todayStr)) {
+    checkDate.setDate(checkDate.getDate() - 1);
+  }
+
+  while (true) {
+    const dateStr = checkDate.toISOString().split('T')[0];
+    if (activeDates.has(dateStr)) {
+      currentStreak++;
+      checkDate.setDate(checkDate.getDate() - 1);
+    } else {
+      break;
+    }
+  }
+
+  const sortedDates = Array.from(activeDates).sort();
+  if (sortedDates.length > 0) {
+    tempStreak = 1;
+    longestStreak = 1;
+    for (let i = 1; i < sortedDates.length; i++) {
+      const prev = new Date(sortedDates[i - 1]);
+      const curr = new Date(sortedDates[i]);
+      const diffDays = Math.round((curr - prev) / (1000 * 60 * 60 * 24));
+      if (diffDays === 1) {
+        tempStreak++;
+      } else if (diffDays > 1) {
+        tempStreak = 1;
+      }
+      if (tempStreak > longestStreak) {
+        longestStreak = tempStreak;
+      }
+    }
+  }
+
+  return {
+    dailyActivity,
+    currentStreak,
+    longestStreak: Math.max(currentStreak, longestStreak),
+    totalActiveDays: activeDates.size,
+    totalQuestionsAnswered
+  };
+}
+
 export async function getMyAnalytics(req, res, next) {
   try {
-    const analytics = await Analytics.findOne({ userId: req.user._id });
-    if (analytics) {
-      return res.json({ analytics });
-    }
+    const analyticsDoc = await Analytics.findOne({ userId: req.user._id });
+    const activityStats = await calculateUserActivityStats(req.user._id);
 
-    const summary = await InterviewSession.aggregate([
-      { $match: { userId: req.user._id, status: 'completed' } },
-      {
-        $group: {
-          _id: null,
-          sessionsCompleted: { $sum: 1 },
-          averageScore: { $avg: '$overallScore' }
-        }
+    const baseAnalytics = analyticsDoc
+      ? analyticsDoc.toObject()
+      : {
+          sessionsCompleted: 0,
+          averageScore: 0
+        };
+
+    res.json({
+      analytics: {
+        ...baseAnalytics,
+        ...activityStats
       }
-    ]);
-
-    res.json({ analytics: summary[0] || { sessionsCompleted: 0, averageScore: 0 } });
+    });
   } catch (error) {
     next(error);
   }

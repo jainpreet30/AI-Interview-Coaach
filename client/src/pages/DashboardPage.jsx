@@ -2,10 +2,16 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../services/api.js';
 import { useAuth } from '../contexts/AuthContext.jsx';
+import ActivityHeatmap from '../components/ActivityHeatmap.jsx';
 
 const defaultStats = {
   sessionsCompleted: 0,
-  averageScore: 0
+  averageScore: 0,
+  currentStreak: 0,
+  longestStreak: 0,
+  totalActiveDays: 0,
+  totalQuestionsAnswered: 0,
+  dailyActivity: []
 };
 
 export default function DashboardPage() {
@@ -63,6 +69,19 @@ export default function DashboardPage() {
           <p className="stat-label">Average score</p>
           <p className="stat-value">{loadingAnalytics ? '—' : analytics.averageScore.toFixed(1)}</p>
         </div>
+        <div className="stat-card">
+          <p className="stat-label">Current Streak</p>
+          <p className="stat-value">{loadingAnalytics ? '—' : `🔥 ${analytics.currentStreak || 0}d`}</p>
+        </div>
+        <div className="stat-card">
+          <p className="stat-label">Questions Practiced</p>
+          <p className="stat-value">{loadingAnalytics ? '—' : analytics.totalQuestionsAnswered || 0}</p>
+        </div>
+      </div>
+
+      {/* GitHub-style Practice Activity Contribution Calendar */}
+      <div className="section-block">
+        <ActivityHeatmap analytics={analytics} />
       </div>
 
       <div className="section-block">

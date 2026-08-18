@@ -1,4 +1,4 @@
-﻿import InterviewSession from '../models/InterviewSession.js';
+import InterviewSession from '../models/InterviewSession.js';
 import Question from '../models/Question.js';
 import FeedbackReport from '../models/FeedbackReport.js';
 import Analytics from '../models/Analytics.js';
@@ -135,7 +135,7 @@ export async function listSessions(req, res, next) {
 export async function submitAnswer(req, res, next) {
   try {
     const { id } = req.params;
-    const { questionId, questionItemId, userAnswer } = req.body;
+    const { questionId, questionItemId, userAnswer, speechMetrics } = req.body;
     if ((!questionId && !questionItemId) || typeof userAnswer !== 'string') {
       return res.status(400).json({ message: 'Question identifier and answer are required.' });
     }
@@ -161,10 +161,21 @@ export async function submitAnswer(req, res, next) {
       return res.status(404).json({ message: 'Question in the session not found.' });
     }
 
-    const aiResponse = await evaluateAnswer({ questionText: questionItem.prompt, userAnswer });
+    const aiResponse = await evaluateAnswer({
+      questionText: questionItem.prompt,
+      userAnswer,
+      speechMetrics
+    });
+
     questionItem.userAnswer = userAnswer;
     questionItem.aiFeedback = `Score: ${aiResponse.score}\nStrengths: ${aiResponse.strengths}\nImprovement: ${aiResponse.improvements}`;
     questionItem.score = aiResponse.score;
+    if (aiResponse.rubric) {
+      questionItem.rubric = aiResponse.rubric;
+    }
+    if (aiResponse.speechMetrics) {
+      questionItem.speechMetrics = aiResponse.speechMetrics;
+    }
 
     await session.save();
     res.json({ session });

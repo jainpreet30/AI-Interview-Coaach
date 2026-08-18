@@ -1,4 +1,4 @@
-﻿import mongoose from 'mongoose';
+import mongoose from 'mongoose';
 
 const sessionQuestionSchema = new mongoose.Schema(
   {
@@ -7,7 +7,34 @@ const sessionQuestionSchema = new mongoose.Schema(
     sampleAnswer: { type: String, default: '' },
     userAnswer: { type: String, default: '' },
     aiFeedback: { type: String, default: '' },
-    score: { type: Number, default: 0 }
+    score: { type: Number, default: 0 },
+    rubric: {
+      technicalScore: { type: Number, default: 0 },
+      communicationScore: { type: Number, default: 0 },
+      starScore: {
+        situation: { type: Number, default: 0 },
+        task: { type: Number, default: 0 },
+        action: { type: Number, default: 0 },
+        result: { type: Number, default: 0 }
+      },
+      strengths: { type: String, default: '' },
+      improvements: { type: String, default: '' },
+      criticism: { type: String, default: '' },
+      whatToAdd: [{ type: String }],
+      keyTermsChecklist: [{
+        term: { type: String },
+        included: { type: Boolean, default: false }
+      }],
+      recommendedAddition: { type: String, default: '' },
+      keyMissingPoints: [{ type: String }],
+      idealAnswer: { type: String, default: '' }
+    },
+    speechMetrics: {
+      wpm: { type: Number, default: 0 },
+      fillerWordCount: { type: Number, default: 0 },
+      fillerWordsFound: [{ type: String }],
+      speakingDurationSeconds: { type: Number, default: 0 }
+    }
   }
 );
 
