@@ -97,6 +97,7 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  min-width: 0;
   padding: 1rem 2rem;
   background: rgba(255, 255, 255, 0.94);
   border-bottom: 1px solid rgba(15, 23, 42, 0.08);
@@ -116,6 +117,7 @@ button {
   display: flex;
   align-items: center;
   gap: 1rem;
+  min-width: 0;
 }
 
 .topnav a,
@@ -493,6 +495,10 @@ textarea:focus {
   .topbar {
     flex-wrap: wrap;
   }
+
+  .footer-container {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 640px) {
@@ -502,6 +508,20 @@ textarea:focus {
 
   .topbar {
     padding: 1rem;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .topnav {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 0.75rem 1rem;
+  }
+
+  .footer-links-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.5rem 1rem;
   }
 
   .button,
@@ -2010,5 +2030,17 @@ textarea:focus {
   .form-row-2col,
   .difficulty-cards-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .footer-container {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .footer-links-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

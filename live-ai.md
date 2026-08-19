@@ -3,6 +3,18 @@
 ## Overview
 The Live AI Interview feature enables users to practice technical and behavioral interviews using voice interaction with an AI coach in real-time. The system provides instant feedback, metrics tracking, and performance analysis.
 
+## Gemini + Browser Speech Mode
+
+The live interview can run without OpenAI credits in Chrome or Edge:
+
+- Browser `SpeechRecognition` provides transcription without a paid speech API; the browser determines its speech service.
+- Browser `speechSynthesis` reads Gemini responses aloud.
+- Gemini generates the introduction, evaluation, and one adaptive next question per answer.
+- The server uses its local rubric-based coaching fallback when Gemini is unavailable.
+- Set `GEMINI_API_KEY` for Gemini Free Tier access. Browser speech still works without it.
+
+Firefox and some privacy-focused browsers do not provide `SpeechRecognition`; Chrome or Edge is recommended for the complete free voice loop.
+
 ## Architecture
 
 ### Components
@@ -10,9 +22,9 @@ The Live AI Interview feature enables users to practice technical and behavioral
 #### Backend
 - **LiveSession Model**: Stores interview session data including transcript, metrics, and results
 - **liveAiService.js**: Handles AI operations:
-  - Audio transcription (OpenAI Whisper)
-  - Text-to-speech conversion (OpenAI TTS)
-  - Real-time coaching response generation
+  - Gemini coaching and adaptive question generation
+  - Browser speech transcription and synthesis
+  - Local fallback coaching
   - Speech metrics calculation
   - Filler word detection
 
@@ -40,10 +52,10 @@ Client                          WebSocket                  Server
   |-- [User speaks & records] --->  |                         |
   |-- audio-chunk (streaming) >>>  | (optional buffering)   |
   |-- submit-answer ------------>  |                         |
-  |                                |----> Transcribe Audio   |
+  |                                |----> Receive browser transcript
   |                                |----> Calculate Metrics  |
   |  <-- transcription-complete    |----> Generate Feedback  |
-  |                                |----> Generate TTS       |
+  |                                |----> Generate next question with Gemini |
   |  <-- coaching-response         |                         |
   |                                |                         |
   | [Display feedback & play audio]|                         |
@@ -58,7 +70,7 @@ Client                          WebSocket                  Server
 ## Features
 
 ### 1. Real-time Transcription
-- Audio from candidate is transcribed using OpenAI Whisper
+- Candidate speech is transcribed using browser SpeechRecognition
 - Transcription appears in real-time in the interface
 - Supports continuous speech recognition
 
@@ -289,8 +301,8 @@ Response: { message: "Session deleted" }
 
 ```env
 # Backend
-AI_API_KEY=<OpenAI API key>
-AI_MODEL=gpt-4 (or gpt-3.5-turbo)
+GEMINI_API_KEY=<Gemini API key>
+GEMINI_MODEL=gemini-3.6-flash
 JWT_SECRET=<Your JWT secret>
 CLIENT_URL=http://localhost:5173 (or production URL)
 MONGODB_URI=<MongoDB connection string>
@@ -335,7 +347,7 @@ npm run dev
 - Real-time metric calculations on client-side
 - Optimized WebSocket message sizes
 - Caching of user sessions
-- Rate limiting on OpenAI API calls
+- Rate limiting on Gemini API calls
 
 ### Scalability
 - Connection pooling for database
@@ -349,7 +361,7 @@ npm run dev
 1. **Microphone Access Denied**: User must grant microphone permissions
 2. **Network Disconnection**: Attempt to reconnect automatically
 3. **Transcription Failure**: Fallback to manual text entry
-4. **OpenAI API Limit**: Queue requests and retry with exponential backoff
+4. **Gemini API Limit**: The local coaching fallback keeps the interview usable
 
 ## Testing
 
@@ -385,12 +397,12 @@ npm run dev
 - Verify Web Audio API compatibility
 
 ### Issue: Transcription not working
-- Verify OpenAI API key is set
-- Check network connectivity
-- Monitor API usage quota
+- Use Chrome or Edge over HTTPS or localhost
+- Allow microphone access for the site
+- Confirm browser SpeechRecognition support
 
 ### Issue: Slow feedback generation
-- Check OpenAI API response times
+- Check Gemini API response times
 - Verify network latency
 - Ensure server resources are available
 

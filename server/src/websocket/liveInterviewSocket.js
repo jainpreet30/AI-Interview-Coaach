@@ -1,7 +1,5 @@
 import LiveSession from '../models/LiveSession.js';
 import {
-  transcribeAudio,
-  generateCoachVoice,
   calculateSpeechMetrics,
   generateCoachingResponse
 } from '../services/liveAiService.js';
@@ -10,21 +8,29 @@ import { verifyToken } from '../services/jwtService.js';
 const activeSessions = new Map(); // Store active session data
 
 export function setupLiveInterviewSocket(io) {
+  // Middleware to verify JWT on connection
+  io.use((socket, next) => {
+    const token = socket.handshake.auth.token;
+    if (!token) {
+      return next(new Error('Authentication error: No token provided'));
+    }
+
+    const decoded = verifyToken(token);
+    if (!decoded) {
+      return next(new Error('Authentication error: Invalid token'));
+    }
+
+    socket.userId = decoded.id || decoded.sub;
+    next();
+  });
+
   io.on('connection', (socket) => {
-    console.log(`User connected: ${socket.id}`);
+    console.log(`User connected: ${socket.id} (userId: ${socket.userId})`);
 
     // Handle session start
     socket.on('start-session', async (data) => {
       try {
-        const { sessionId, token } = data;
-
-        // Verify user authentication
-        const decoded = verifyToken(token);
-        if (!decoded) {
-          socket.emit('error', { message: 'Authentication failed' });
-          socket.disconnect();
-          return;
-        }
+        const { sessionId } = data;
 
         // Get session from database
         const session = await LiveSession.findById(sessionId);
@@ -33,7 +39,10 @@ export function setupLiveInterviewSocket(io) {
           return;
         }
 
-        if (!session.userId.equals(decoded.id)) {
+        const askedQuestion = session.currentQuestion.prompt;
+
+        // Verify user owns this session
+        if (!session.userId.equals(socket.userId)) {
           socket.emit('error', { message: 'Unauthorized access' });
           return;
         }
@@ -45,7 +54,7 @@ export function setupLiveInterviewSocket(io) {
 
         // Store active session info
         activeSessions.set(sessionId, {
-          userId: decoded.id,
+          userId: socket.userId,
           socketId: socket.id,
           currentTranscript: [],
           startTime: Date.now(),
@@ -93,7 +102,7 @@ export function setupLiveInterviewSocket(io) {
     // Handle answer submission with transcription
     socket.on('submit-answer', async (data) => {
       try {
-        const { sessionId, audioBuffer, durationSeconds } = data;
+        const { sessionId, transcript, durationSeconds } = data;
 
         const activeSession = activeSessions.get(sessionId);
         if (!activeSession) {
@@ -101,18 +110,13 @@ export function setupLiveInterviewSocket(io) {
           return;
         }
 
-        // Transcribe audio
-        const transcriptionResult = await transcribeAudio(Buffer.from(audioBuffer));
-
-        if (!transcriptionResult.success) {
+        const candidateText = transcript?.trim();
+        if (!candidateText) {
           socket.emit('transcription-error', {
-            message: 'Failed to transcribe audio',
-            error: transcriptionResult.error
+            message: 'No browser transcript was received. Please try recording your answer again.'
           });
           return;
         }
-
-        const candidateText = transcriptionResult.text;
 
         // Calculate speech metrics
         const metrics = calculateSpeechMetrics(candidateText, durationSeconds);
@@ -123,6 +127,8 @@ export function setupLiveInterviewSocket(io) {
           socket.emit('error', { message: 'Session not found' });
           return;
         }
+
+        const askedQuestion = session.currentQuestion?.prompt || 'Tell me about your approach.';
 
         // Add to transcript
         const candidateEntry = {
@@ -143,11 +149,15 @@ export function setupLiveInterviewSocket(io) {
 
         // Generate AI coaching response
         const coachingResponse = await generateCoachingResponse({
-          currentQuestion: session.currentQuestion.prompt,
+          currentQuestion: askedQuestion,
           candidateAnswer: candidateText,
           speechMetrics: metrics,
           interviewerPersona: session.interviewerPersona,
           targetRole: session.targetRole,
+          category: session.category,
+          difficulty: session.difficulty,
+          resumeText: session.resumeText,
+          jobDescription: session.jobDescription,
           conversationContext: session.transcript.slice(-6).map(t => ({
             speaker: t.speaker,
             text: t.text
@@ -158,24 +168,10 @@ export function setupLiveInterviewSocket(io) {
           console.error('Coaching generation failed:', coachingResponse.error);
         }
 
-        // Generate coach voice response
-        let audioUrl = null;
-        try {
-          const voiceResponse = await generateCoachVoice(coachingResponse.nextResponse);
-          if (voiceResponse.success) {
-            // In production, you'd upload this to cloud storage
-            // For now, we'll convert to base64
-            audioUrl = voiceResponse.audioBuffer.toString('base64');
-          }
-        } catch (error) {
-          console.error('Voice generation error:', error);
-        }
-
         // Add coach response to transcript
         const coachEntry = {
           speaker: 'coach',
           text: coachingResponse.nextResponse,
-          audioUrl,
           timestamp: new Date(),
           speechMetrics: {
             confidenceScore: 100
@@ -185,13 +181,34 @@ export function setupLiveInterviewSocket(io) {
         session.transcript.push(coachEntry);
 
         // Update current question with feedback
+        const nextQuestion = coachingResponse.nextQuestion || coachingResponse.followUpQuestions[0] || 'Tell me more about this.';
         session.currentQuestion = {
-          prompt: coachingResponse.followUpQuestions[0] || 'Let me ask the next question',
+          prompt: nextQuestion,
           coachResponse: coachingResponse.nextResponse,
           feedback: coachingResponse.feedback,
           score: coachingResponse.score,
           followUpQuestions: coachingResponse.followUpQuestions
         };
+
+        if (!session.turns) session.turns = [];
+        session.turns.push({
+          question: askedQuestion,
+          answer: candidateText,
+          askedAt: new Date(),
+          answeredAt: new Date(),
+          evaluation: {
+            score: coachingResponse.score,
+            feedback: coachingResponse.feedback,
+            strengths: coachingResponse.strengths,
+            areasForImprovement: coachingResponse.areasForImprovement,
+            technicalScore: coachingResponse.technicalScore,
+            communicationScore: coachingResponse.communicationScore,
+            relevanceScore: coachingResponse.relevanceScore,
+            structureScore: coachingResponse.structureScore
+          },
+          followUpQuestion: nextQuestion,
+          state: 'feedback'
+        });
 
         await session.save();
 
@@ -202,9 +219,12 @@ export function setupLiveInterviewSocket(io) {
           strengths: coachingResponse.strengths,
           areasForImprovement: coachingResponse.areasForImprovement,
           nextResponse: coachingResponse.nextResponse,
-          audioUrl,
           followUpQuestions: coachingResponse.followUpQuestions,
-          nextQuestion: coachingResponse.followUpQuestions[0] || 'Tell me more about this.'
+          nextQuestion,
+          technicalScore: coachingResponse.technicalScore,
+          communicationScore: coachingResponse.communicationScore,
+          relevanceScore: coachingResponse.relevanceScore,
+          structureScore: coachingResponse.structureScore
         });
       } catch (error) {
         console.error('Submit answer error:', error);
@@ -229,6 +249,10 @@ export function setupLiveInterviewSocket(io) {
           let totalWPM = 0;
           let totalFillerWords = 0;
           let totalConfidence = 0;
+          let totalTechnical = 0;
+          let totalCommunication = 0;
+          let totalRelevance = 0;
+          let totalStructure = 0;
 
           candidateTranscripts.forEach(t => {
             if (t.speechMetrics) {
@@ -239,6 +263,13 @@ export function setupLiveInterviewSocket(io) {
             }
           });
 
+          (session.turns || []).forEach((turn) => {
+            totalTechnical += turn.evaluation?.technicalScore || 0;
+            totalCommunication += turn.evaluation?.communicationScore || 0;
+            totalRelevance += turn.evaluation?.relevanceScore || 0;
+            totalStructure += turn.evaluation?.structureScore || 0;
+          });
+
           const candidateCount = candidateTranscripts.length || 1;
 
           session.metrics = {
@@ -246,15 +277,27 @@ export function setupLiveInterviewSocket(io) {
             averageWPM: Math.round(totalWPM / candidateCount),
             fillerWordCount: totalFillerWords,
             confidenceScore: Math.round(totalConfidence / candidateCount),
-            communicationScore: Math.round((100 - (totalFillerWords / candidateCount) * 5) * 0.8),
-            overallScore: Math.round(totalConfidence / candidateCount)
+            communicationScore: totalCommunication
+              ? Math.round((totalCommunication / candidateCount) * 10)
+              : Math.round((100 - (totalFillerWords / candidateCount) * 5) * 0.8),
+            technicalScore: totalTechnical ? Math.round((totalTechnical / candidateCount) * 10) : 0,
+            clarityScore: totalStructure ? Math.round((totalStructure / candidateCount) * 10) : 0,
+            overallScore: totalRelevance
+              ? Math.round((totalRelevance / candidateCount) * 10)
+              : Math.round(totalConfidence / candidateCount)
+          };
+
+          session.finalEvaluationDimensions = {
+            clarity: session.metrics.clarityScore,
+            technical: session.metrics.technicalScore,
+            communication: session.metrics.communicationScore,
+            overall: session.metrics.overallScore
           };
 
           await session.save();
         }
 
         activeSessions.delete(sessionId);
-        socket.leave(`session-${sessionId}`);
 
         io.to(`session-${sessionId}`).emit('session-ended', {
           message: 'Session ended',
@@ -264,6 +307,8 @@ export function setupLiveInterviewSocket(io) {
             transcript: session?.transcript
           }
         });
+
+        socket.leave(`session-${sessionId}`);
 
         console.log(`Session ${sessionId} ended`);
       } catch (error) {

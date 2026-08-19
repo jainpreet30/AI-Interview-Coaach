@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import InterviewSession from '../models/InterviewSession.js';
+import LiveSession from '../models/LiveSession.js';
 import Analytics from '../models/Analytics.js';
 
 async function calculateUserActivityStats(userId) {
@@ -95,6 +96,9 @@ export async function getMyAnalytics(req, res, next) {
   try {
     const analyticsDoc = await Analytics.findOne({ userId: req.user._id });
     const activityStats = await calculateUserActivityStats(req.user._id);
+    const liveSessions = await LiveSession.find({ userId: req.user._id, status: 'completed' })
+      .select('metrics category difficulty targetRole completedAt')
+      .lean();
 
     const baseAnalytics = analyticsDoc
       ? analyticsDoc.toObject()
@@ -103,8 +107,16 @@ export async function getMyAnalytics(req, res, next) {
           averageScore: 0
         };
 
-    const completedCount = activityStats.dailyActivity ? activityStats.dailyActivity.reduce((acc, curr) => acc + curr.count, 0) : 0;
-    const avgScore10 = baseAnalytics.averageScore || 7.2;
+    const liveScores = liveSessions.map((session) => session.metrics?.overallScore).filter((score) => typeof score === 'number');
+    const storedSessionCount = baseAnalytics.sessionsCompleted || 0;
+    const completedCount = storedSessionCount + liveSessions.length;
+    const liveAverageScore10 = liveScores.length
+      ? liveScores.reduce((sum, score) => sum + score, 0) / liveScores.length / 10
+      : 0;
+    const storedAverageScore10 = baseAnalytics.averageScore || 0;
+    const avgScore10 = completedCount
+      ? ((storedAverageScore10 * storedSessionCount) + (liveAverageScore10 * liveSessions.length)) / completedCount
+      : 7.2;
     const avgScore100 = Math.round(avgScore10 > 10 ? avgScore10 : avgScore10 * 10);
 
     const readinessScore = completedCount > 0 ? Math.min(98, Math.max(45, Math.round(avgScore100 * 0.8 + Math.min(20, completedCount * 2)))) : 65;
@@ -127,6 +139,8 @@ export async function getMyAnalytics(req, res, next) {
       analytics: {
         ...baseAnalytics,
         ...activityStats,
+        sessionsCompleted: completedCount,
+        averageScore: avgScore10,
         readinessScore,
         skillsBreakdown,
         aiRecommendation

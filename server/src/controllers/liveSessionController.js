@@ -26,7 +26,9 @@ export async function createLiveSession(req, res, next) {
       category,
       difficulty,
       targetRole,
-      interviewerPersona
+      interviewerPersona,
+      resumeText,
+      jobDescription
     });
 
     // Create live session

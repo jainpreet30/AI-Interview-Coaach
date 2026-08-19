@@ -1,7 +1,9 @@
 import axios from 'axios';
 
 const fallbackBaseURL = '/api/v1';
-const baseURL = import.meta.env.VITE_API_URL || fallbackBaseURL;
+const baseURL = import.meta.env.VITE_API_URL
+  ? new URL('/api/v1', import.meta.env.VITE_API_URL).toString().replace(/\/$/, '')
+  : fallbackBaseURL;
 
 if (!import.meta.env.VITE_API_URL && typeof window !== 'undefined') {
   const remoteHosts = ['vercel.app', 'netlify.app', 'render.com'];

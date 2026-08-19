@@ -399,10 +399,3 @@ export async function summarizeSession({ questions }) {
     confidenceScore: Math.round(average * 10) / 10
   };
 }
-const coveredCount = questions.filter((item) => item.score != null).length;
-const average = questions.length > 0 ? questions.reduce((sum, item) => sum + (item.score || 0), 0) / questions.length : 0;
-return {
-  summary: `You completed ${coveredCount} question${coveredCount === 1 ? '' : 's'} with an average score of ${average.toFixed(1)}.`,
-  confidenceScore: Math.round(average * 10) / 10
-};
-}

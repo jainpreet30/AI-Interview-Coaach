@@ -1,8 +1,20 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { useLiveInterviewSocket, useAudioRecorder, useAudioPlayback, useSpeechMetrics } from '../hooks/useLiveInterview';
+import {
+  useLiveInterviewSocket,
+  useAudioRecorder,
+  useAudioPlayback,
+  useBrowserSpeechRecognition
+} from '../hooks/useLiveInterview';
 import './LiveInterviewPage.css';
+
+const INTERVIEW_STATES = {
+  ASKING: 'asking',
+  LISTENING: 'listening',
+  PROCESSING: 'processing',
+  FEEDBACK: 'feedback'
+};
 
 export default function LiveInterviewPage() {
   const { sessionId } = useParams();
@@ -10,12 +22,21 @@ export default function LiveInterviewPage() {
   const { user, token } = useAuth();
   const { socket, connected } = useLiveInterviewSocket(token);
   const { startRecording, stopRecording, isRecording, recordingTime } = useAudioRecorder();
-  const { playAudio, isPlaying } = useAudioPlayback();
+  const { playAudio, speakText, isPlaying } = useAudioPlayback();
+  const {
+    startListening,
+    stopListening,
+    isListening,
+    interimTranscript,
+    isSupported: browserSpeechSupported,
+    error: speechError
+  } = useBrowserSpeechRecognition();
   const [sessionData, setSessionData] = useState(null);
   const [transcript, setTranscript] = useState([]);
   const [currentCoachResponse, setCurrentCoachResponse] = useState(null);
   const [metrics, setMetrics] = useState(null);
   const [isAnswering, setIsAnswering] = useState(false);
+  const [interviewState, setInterviewState] = useState(INTERVIEW_STATES.ASKING);
   const [sessionStarted, setSessionStarted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -31,96 +52,138 @@ export default function LiveInterviewPage() {
     const initSession = async () => {
       if (!socket || !connected || !sessionId) return;
 
+      const handleSessionStarted = (data) => {
+        setSessionData({ _id: sessionId, ...data });
+        setTranscript(data.transcript || []);
+        setSessionStarted(true);
+        setInterviewState(INTERVIEW_STATES.ASKING);
+        setLoading(false);
+
+        setTimeout(() => {
+          playCoachIntroduction(
+            `${data.transcript?.[0]?.text || ''} ${data.currentQuestion || ''}`.trim(),
+            data.initialAudioUrl
+          );
+        }, 500);
+      };
+
+      const handleSocketError = (data) => {
+        setError(data.message);
+        setLoading(false);
+      };
+
+      const handleTranscriptionComplete = (data) => {
+        setTranscript(prev => [
+          ...prev,
+          {
+            speaker: 'candidate',
+            text: data.text,
+            timestamp: new Date()
+          }
+        ]);
+        setMetrics(data.metrics);
+        setInterviewState(INTERVIEW_STATES.PROCESSING);
+      };
+
+      const handleCoachingResponse = async (data) => {
+        setCurrentCoachResponse(data);
+        setSessionData(prev => ({
+          ...prev,
+          currentQuestion: data.nextQuestion
+        }));
+        setTranscript(prev => [
+          ...prev,
+          {
+            speaker: 'coach',
+            text: data.nextResponse,
+            timestamp: new Date()
+          }
+        ]);
+
+        if (data.audioUrl) {
+          await playAudio(data.audioUrl);
+        } else {
+          speakText(`${data.nextResponse} ${data.nextQuestion}`);
+        }
+
+        setIsAnswering(false);
+        setInterviewState(INTERVIEW_STATES.FEEDBACK);
+      };
+
+      const handleSessionEnded = (data) => {
+        setSessionData(prev => ({
+          ...prev,
+          ...data.session
+        }));
+        navigate(`/live-interview/${sessionId}/report`);
+      };
+
       try {
         // Emit start session event
         socket.emit('start-session', { sessionId, token });
 
-        socket.on('session-started', (data) => {
-          setSessionData({ _id: sessionId, ...data });
-          setTranscript(data.transcript || []);
-          setSessionStarted(true);
-          setLoading(false);
-
-          // Auto-play coach introduction
-          setTimeout(() => {
-            playCoachIntroduction(data.transcript[0]?.text || '');
-          }, 500);
-        });
-
-        socket.on('error', (data) => {
-          setError(data.message);
-          setLoading(false);
-        });
-
-        socket.on('transcription-complete', (data) => {
-          setTranscript(prev => [
-            ...prev,
-            {
-              speaker: 'candidate',
-              text: data.text,
-              timestamp: new Date()
-            }
-          ]);
-          setMetrics(data.metrics);
-        });
-
-        socket.on('coaching-response', async (data) => {
-          setCurrentCoachResponse(data);
-          setTranscript(prev => [
-            ...prev,
-            {
-              speaker: 'coach',
-              text: data.nextResponse,
-              timestamp: new Date()
-            }
-          ]);
-
-          // Play coach voice response
-          if (data.audioUrl) {
-            await playAudio(data.audioUrl);
-          }
-
-          setIsAnswering(false);
-        });
-
-        socket.on('session-ended', (data) => {
-          setSessionData(prev => ({
-            ...prev,
-            ...data.session
-          }));
-          navigate(`/dashboard`);
-        });
+        socket.on('session-started', handleSessionStarted);
+        socket.on('error', handleSocketError);
+        socket.on('transcription-complete', handleTranscriptionComplete);
+        socket.on('coaching-response', handleCoachingResponse);
+        socket.on('session-ended', handleSessionEnded);
       } catch (err) {
         setError(err.message);
         setLoading(false);
       }
+
+      return () => {
+        socket.off('session-started', handleSessionStarted);
+        socket.off('error', handleSocketError);
+        socket.off('transcription-complete', handleTranscriptionComplete);
+        socket.off('coaching-response', handleCoachingResponse);
+        socket.off('session-ended', handleSessionEnded);
+      };
     };
 
     initSession();
-  }, [socket, connected, sessionId, token, navigate]);
+  }, [socket, connected, sessionId, token, navigate, playAudio, speakText]);
 
-  const playCoachIntroduction = async (text) => {
-    if (text && typeof text === 'string') {
-      // In a real scenario, this would use TTS
-      console.log('Coach:', text);
+  const playCoachIntroduction = async (text, audioData) => {
+    if (audioData) {
+      await playAudio(audioData);
+    } else if (text && typeof text === 'string') {
+      speakText(text);
     }
   };
 
   const handleRecordAnswer = async () => {
-    if (!isRecording) {
-      await startRecording();
-      setIsAnswering(true);
+    const currentlyListening = browserSpeechSupported ? isListening : isRecording;
+
+    if (!currentlyListening) {
+      try {
+        if (browserSpeechSupported) {
+          startListening();
+        } else {
+          await startRecording();
+        }
+        setInterviewState(INTERVIEW_STATES.LISTENING);
+        setIsAnswering(true);
+      } catch (recordingError) {
+        setError(recordingError.message);
+      }
     } else {
       setIsAnswering(false);
-      const recording = await stopRecording();
+      setInterviewState(INTERVIEW_STATES.PROCESSING);
+      const recording = browserSpeechSupported
+        ? await stopListening()
+        : await stopRecording();
 
-      if (recording) {
+      if (recording && (recording.text || recording.audioBuffer)) {
         // Send audio to server via WebSocket
         socket.emit('submit-answer', {
           sessionId,
+          transcript: recording.text,
           audioBuffer: recording.audioBuffer,
           durationSeconds: recording.durationSeconds
         });
+      } else {
+        setInterviewState(INTERVIEW_STATES.ASKING);
       }
     }
   };
@@ -133,8 +196,18 @@ export default function LiveInterviewPage() {
     if (currentCoachResponse?.followUpQuestions?.length) {
       setCurrentCoachResponse(null);
       setMetrics(null);
+      setInterviewState(INTERVIEW_STATES.ASKING);
     }
   };
+
+  const stateLabels = {
+    [INTERVIEW_STATES.ASKING]: 'Ready for your answer',
+    [INTERVIEW_STATES.LISTENING]: 'Listening to you',
+    [INTERVIEW_STATES.PROCESSING]: 'Transcribing and reviewing your answer',
+    [INTERVIEW_STATES.FEEDBACK]: 'Feedback ready'
+  };
+
+  const visibleSpeechError = speechError || null;
 
   if (!connected) {
     return (
@@ -201,6 +274,12 @@ export default function LiveInterviewPage() {
                 )}
               </div>
             ))}
+            {interimTranscript && (
+              <div className="transcript-entry speaker-candidate interim" aria-live="polite">
+                <div className="speaker-label">You</div>
+                <div className="speaker-text">{interimTranscript}</div>
+              </div>
+            )}
             <div ref={transcriptEndRef} />
           </div>
         </div>
@@ -209,7 +288,11 @@ export default function LiveInterviewPage() {
         <div className="controls-section">
           <div className="question-display">
             <h3>Current Question</h3>
-            <p>{sessionData?.currentQuestion || currentCoachResponse?.nextQuestion}</p>
+            <p>{sessionData?.currentQuestion || 'Preparing your next question...'}</p>
+            <div className={`interview-state state-${interviewState}`} role="status">
+              <span className="state-dot" aria-hidden="true"></span>
+              {stateLabels[interviewState]}
+            </div>
           </div>
 
           {/* Metrics Display */}
@@ -295,12 +378,13 @@ export default function LiveInterviewPage() {
 
           {/* Recording Controls */}
           <div className="recording-controls">
+            {visibleSpeechError && <p className="recording-error" role="alert">{visibleSpeechError}</p>}
             <button
-              className={`btn btn-record ${isRecording ? 'recording' : ''}`}
+              className={`btn btn-record ${(isRecording || isListening) ? 'recording' : ''}`}
               onClick={handleRecordAnswer}
-              disabled={isPlaying}
+              disabled={isPlaying || interviewState === INTERVIEW_STATES.PROCESSING || Boolean(currentCoachResponse)}
             >
-              {isRecording ? (
+              {isRecording || isListening ? (
                 <>
                   <span className="pulse"></span>
                   Stop Recording ({recordingTime}s)

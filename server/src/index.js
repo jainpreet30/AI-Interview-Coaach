@@ -3,13 +3,44 @@ import mongoose from 'mongoose';
 import dns from 'dns/promises';
 import http from 'http';
 import { Server } from 'socket.io';
-import app from './app.js';
-import { setupLiveInterviewSocket } from './websocket/liveInterviewSocket.js';
 
 dotenv.config();
 
-const PORT = process.env.PORT || 5000;
+const { default: app } = await import('./app.js');
+const { setupLiveInterviewSocket } = await import('./websocket/liveInterviewSocket.js');
+
+const DEFAULT_PORT = Number(process.env.PORT) || 5000;
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/interview-coach';
+
+function startServer(port) {
+  const server = http.createServer(app);
+
+  const io = new Server(server, {
+    cors: {
+      origin: process.env.CLIENT_URL || 'http://localhost:5173',
+      methods: ['GET', 'POST']
+    }
+  });
+
+  setupLiveInterviewSocket(io);
+
+  server.on('error', (error) => {
+    if (error.code === 'EADDRINUSE') {
+      const nextPort = port + 1;
+      console.warn(`Port ${port} is already in use. Retrying on ${nextPort}...`);
+      startServer(nextPort);
+      return;
+    }
+
+    console.error('Server startup error:', error);
+    process.exit(1);
+  });
+
+  server.listen(port, () => {
+    console.log(`Server listening on http://localhost:${port}`);
+    console.log(`WebSocket ready on ws://localhost:${port}`);
+  });
+}
 
 async function checkSrvResolutionIfNeeded(uri) {
   try {
@@ -63,21 +94,5 @@ async function connectDatabaseWithRetry(uri, maxAttempts = 5, delayMs = 2000) {
 }
 
 connectDatabaseWithRetry(MONGODB_URI).then(() => {
-  const server = http.createServer(app);
-
-  // Set up Socket.io
-  const io = new Server(server, {
-    cors: {
-      origin: process.env.CLIENT_URL || 'http://localhost:5173',
-      methods: ['GET', 'POST']
-    }
-  });
-
-  // Set up live interview socket handlers
-  setupLiveInterviewSocket(io);
-
-  server.listen(PORT, () => {
-    console.log(`Server listening on http://localhost:${PORT}`);
-    console.log(`WebSocket ready on ws://localhost:${PORT}`);
-  });
+  startServer(DEFAULT_PORT);
 });

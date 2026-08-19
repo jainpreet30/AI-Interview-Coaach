@@ -11,6 +11,7 @@ import PracticeStartPage from './pages/PracticeStartPage.jsx';
 import PracticeSessionPage from './pages/PracticeSessionPage.jsx';
 import LiveInterviewStartPage from './pages/LiveInterviewStartPage.jsx';
 import LiveInterviewPage from './pages/LiveInterviewPage.jsx';
+import LiveInterviewReportPage from './pages/LiveInterviewReportPage.jsx';
 import NotFoundPage from './pages/NotFoundPage.jsx';
 
 function App() {
@@ -53,6 +54,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <LiveInterviewStartPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/live-interview/:sessionId/report"
+              element={
+                <ProtectedRoute>
+                  <LiveInterviewReportPage />
                 </ProtectedRoute>
               }
             />

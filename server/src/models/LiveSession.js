@@ -81,7 +81,41 @@ const liveSessionSchema = new mongoose.Schema(
     sessionNotes: String,
     resumeText: String,
     jobDescription: String,
-    tags: [String]
+    tags: [String],
+    turns: [
+      {
+        question: String,
+        answer: String,
+        askedAt: Date,
+        answeredAt: Date,
+        evaluation: {
+          score: Number,
+          feedback: String,
+          strengths: [String],
+          areasForImprovement: [String],
+          technicalScore: Number,
+          communicationScore: Number,
+          relevanceScore: Number,
+          structureScore: Number
+        },
+        followUpQuestion: String,
+        state: {
+          type: String,
+          enum: ['asked', 'listening', 'processing', 'feedback'],
+          default: 'feedback'
+        },
+        timestamp: {
+          type: Date,
+          default: Date.now
+        }
+      }
+    ],
+    finalEvaluationDimensions: {
+      clarity: Number,
+      technical: Number,
+      communication: Number,
+      overall: Number
+    }
   },
   { timestamps: true }
 );

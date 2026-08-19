@@ -30,6 +30,7 @@ const defaultStats = {
 export default function DashboardPage() {
   const { user } = useAuth();
   const [sessions, setSessions] = useState([]);
+  const [liveSessions, setLiveSessions] = useState([]);
   const [analytics, setAnalytics] = useState(defaultStats);
   const [loadingSessions, setLoadingSessions] = useState(true);
   const [loadingAnalytics, setLoadingAnalytics] = useState(true);
@@ -54,6 +55,12 @@ export default function DashboardPage() {
         }
       })
       .catch(() => active && setLoadingAnalytics(false));
+
+    api.get('/live-sessions?status=completed')
+      .then((response) => {
+        if (active) setLiveSessions(response.data.sessions || []);
+      })
+      .catch(() => active && setLiveSessions([]));
 
     return () => {
       active = false;
@@ -176,6 +183,32 @@ export default function DashboardPage() {
       {/* GitHub-style Practice Activity Contribution Calendar */}
       <div className="section-block">
         <ActivityHeatmap analytics={analytics} />
+      </div>
+
+      <div className="section-block">
+        <div className="section-heading">
+          <div><h2>Recent Live Interviews</h2><p>Review adaptive voice interviews and detailed Gemini evaluations.</p></div>
+          <Link className="link-secondary" to="/live-interview/start">New Live Interview →</Link>
+        </div>
+        {liveSessions.length === 0 ? (
+          <div className="empty-state"><p>No completed live interviews yet.</p></div>
+        ) : (
+          <div className="session-list">
+            {liveSessions.slice(0, 5).map((session) => (
+              <article key={session._id} className="session-card-redesigned">
+                <div className="session-card-info">
+                  <div className="session-card-badges"><span className="cat-pill">{session.category}</span><span className="role-pill">{session.targetRole}</span><span className="diff-pill">{session.difficulty}</span></div>
+                  <h4>Live interview</h4>
+                  <p className="session-questions-count">Completed {session.completedAt ? new Date(session.completedAt).toLocaleDateString() : ''}</p>
+                </div>
+                <div className="session-card-right">
+                  <div className="session-score-display"><span className="score-label">Score</span><strong className="score-value">{formatScore(session.metrics?.overallScore)}</strong></div>
+                  <Link className="button button-secondary button-sm" to={`/live-interview/${session._id}/report`}>View Report →</Link>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Recent Sessions List */}

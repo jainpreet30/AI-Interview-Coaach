@@ -64,6 +64,8 @@ export function useAudioRecorder() {
       }, 1000);
     } catch (error) {
       console.error('Failed to start recording:', error);
+      setIsRecording(false);
+      throw new Error('Microphone access is required to record your answer.');
     }
   }, []);
 
@@ -82,6 +84,7 @@ export function useAudioRecorder() {
         mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
 
         clearInterval(recordingIntervalRef.current);
+        recordingIntervalRef.current = null;
         setIsRecording(false);
 
         resolve({
@@ -106,6 +109,18 @@ export function useAudioRecorder() {
 export function useAudioPlayback() {
   const audioContextRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
+
+  const speakText = useCallback((text) => {
+    if (!text || !('speechSynthesis' in window)) return false;
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.onstart = () => setIsPlaying(true);
+    utterance.onend = () => setIsPlaying(false);
+    utterance.onerror = () => setIsPlaying(false);
+    window.speechSynthesis.speak(utterance);
+    return true;
+  }, []);
 
   const playAudio = useCallback(async (audioData) => {
     try {
@@ -147,7 +162,108 @@ export function useAudioPlayback() {
 
   return {
     playAudio,
+    speakText,
     isPlaying
+  };
+}
+
+export function useBrowserSpeechRecognition() {
+  const recognitionRef = useRef(null);
+  const transcriptRef = useRef('');
+  const resolveStopRef = useRef(null);
+  const startedAtRef = useRef(null);
+  const [isListening, setIsListening] = useState(false);
+  const [interimTranscript, setInterimTranscript] = useState('');
+  const [error, setError] = useState(null);
+  const [isSupported] = useState(() => (
+    typeof window !== 'undefined' && Boolean(window.SpeechRecognition || window.webkitSpeechRecognition)
+  ));
+
+  useEffect(() => {
+    if (!isSupported) return undefined;
+
+    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new Recognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+
+    recognition.onresult = (event) => {
+      let interim = '';
+      for (let index = event.resultIndex; index < event.results.length; index += 1) {
+        const result = event.results[index];
+        if (result.isFinal) {
+          transcriptRef.current += `${result[0].transcript} `;
+        } else {
+          interim += result[0].transcript;
+        }
+      }
+      setInterimTranscript(interim.trim());
+    };
+
+    recognition.onerror = (event) => {
+      setError(event.error === 'not-allowed'
+        ? 'Microphone access is required for browser transcription.'
+        : 'Browser transcription could not start.');
+      setIsListening(false);
+      resolveStopRef.current?.({
+        text: transcriptRef.current.trim(),
+        durationSeconds: startedAtRef.current
+          ? Math.max(1, Math.round((Date.now() - startedAtRef.current) / 1000))
+          : 0
+      });
+      resolveStopRef.current = null;
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+      setInterimTranscript('');
+      resolveStopRef.current?.({
+        text: transcriptRef.current.trim(),
+        durationSeconds: startedAtRef.current
+          ? Math.max(1, Math.round((Date.now() - startedAtRef.current) / 1000))
+          : 0
+      });
+      resolveStopRef.current = null;
+    };
+
+    recognitionRef.current = recognition;
+    return () => {
+      recognition.abort();
+      recognitionRef.current = null;
+    };
+  }, [isSupported]);
+
+  const startListening = useCallback(() => {
+    if (!recognitionRef.current) {
+      throw new Error('Browser transcription is not supported in this browser.');
+    }
+
+    setError(null);
+    transcriptRef.current = '';
+    setInterimTranscript('');
+    startedAtRef.current = Date.now();
+    recognitionRef.current.start();
+    setIsListening(true);
+  }, []);
+
+  const stopListening = useCallback(() => new Promise((resolve) => {
+    if (!recognitionRef.current || !isListening) {
+      resolve({ text: transcriptRef.current.trim(), durationSeconds: 0 });
+      return;
+    }
+
+    resolveStopRef.current = resolve;
+    recognitionRef.current.stop();
+  }), [isListening]);
+
+  return {
+    startListening,
+    stopListening,
+    isListening,
+    interimTranscript,
+    isSupported,
+    error
   };
 }
 

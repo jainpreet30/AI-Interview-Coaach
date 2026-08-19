@@ -6,12 +6,12 @@ import {
   completeLiveSession,
   deleteLiveSession
 } from '../controllers/liveSessionController.js';
-import { authMiddleware } from '../middleware/authMiddleware.js';
+import { requireAuth } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
 // All routes require authentication
-router.use(authMiddleware);
+router.use(requireAuth);
 
 // Create a new live session
 router.post('/', createLiveSession);

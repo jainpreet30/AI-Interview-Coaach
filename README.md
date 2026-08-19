@@ -2,6 +2,32 @@
 
 AI Interview Coach is a final-year MERN project designed to provide students and early-career professionals with an AI-powered interview practice platform. It combines a modern React frontend, Express.js backend, MongoDB persistence, and AI-driven feedback with real-time voice capabilities.
 
+## 🚀 Quick Start
+
+### Prerequisites
+- Node.js 16+ and npm
+- MongoDB (Atlas or local)
+- OpenAI API key (for GPT-4, Whisper, TTS-1)
+
+### Setup (2 minutes)
+
+**Backend:**
+```bash
+cd server
+npm install
+# Create .env with: MONGODB_URI, AI_API_KEY, CLIENT_URL, JWT_SECRET
+npm run dev          # Runs on http://localhost:5000
+```
+
+**Frontend:**
+```bash
+cd client
+npm install
+npm run dev          # Runs on http://localhost:5174
+```
+
+Visit http://localhost:5174/ → Register → Try Live Interview (/live-interview/start)
+
 ## Technology Stack
 
 ### 🎨 Frontend
@@ -16,13 +42,14 @@ AI Interview Coach is a final-year MERN project designed to provide students and
 ### 🔧 Backend
 - **Runtime**: Node.js 16+
 - **Framework**: Express.js 4.18.3
-- **Real-time**: Socket.io 4.7.2, Socket.io JWT 1.1.1
+- **Real-time**: Socket.io 4.7.2 (with built-in JWT authentication)
 - **Database**: MongoDB 7.5.0, Mongoose 7.8.0
 - **Authentication**: JWT (jsonwebtoken 9.0.1)
 - **Security**: bcryptjs 2.4.3, CORS 2.8.5
 - **Environment**: dotenv 16.4.1
 - **Testing**: Jest 29.7.0, Supertest 7.2.2
 - **Code Quality**: ESLint 8.57.0
+- **Dev Server**: Nodemon 3.1.14
 
 ### 🤖 AI & Machine Learning
 - **AI Provider**: OpenAI API 4.9.0

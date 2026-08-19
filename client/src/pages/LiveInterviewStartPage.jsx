@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-import { api } from '../services/api';
+import { useAuth } from '../contexts/AuthContext.jsx';
+import api from '../services/api.js';
 import './LiveInterviewStartPage.css';
 
 export default function LiveInterviewStartPage() {
@@ -30,7 +30,7 @@ export default function LiveInterviewStartPage() {
     setError(null);
 
     try {
-      const response = await api.post('/api/v1/live-sessions', formData, {
+      const response = await api.post('/live-sessions', formData, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
